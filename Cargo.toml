@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "ez way to make multiplayer browser games using a websocket"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/Dummi26/ezbrowsergameserver"
 
 [dependencies]
 async-trait = "0.1.74"
