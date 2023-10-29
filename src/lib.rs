@@ -11,7 +11,13 @@ use crate::game::{InGame, Lobby};
 
 pub mod game;
 
-pub use game::GameState;
+pub mod prelude {
+    pub use crate::{
+        game::{GameState, Lobby, LobbyState, PlayerIndex},
+        host,
+    };
+    pub use async_trait::async_trait;
+}
 
 /// Hosts the game's WebSocket.
 ///

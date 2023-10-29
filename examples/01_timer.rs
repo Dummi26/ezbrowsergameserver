@@ -1,10 +1,7 @@
 use std::time::Instant;
 
 use async_trait::async_trait;
-use ezbrowsergameserver::{
-    game::{Lobby, LobbyState, PlayerIndex},
-    GameState,
-};
+use ezbrowsergameserver::prelude::*;
 
 // Run `server.sh` and open `0.0.0.0:8080/01_timer.html` to play the game.
 // You need at least 2 players to ready up for the game to start.
@@ -12,7 +9,7 @@ use ezbrowsergameserver::{
 #[tokio::main]
 async fn main() {
     // Host the game's WebSocket on 0.0.0.0:8081
-    ezbrowsergameserver::host::<GlobalState>("0.0.0.0:8081").await;
+    host::<GlobalState>("0.0.0.0:8081").await;
 }
 
 /// Since this is such a small demo, there is no global state.
