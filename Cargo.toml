@@ -1,0 +1,10 @@
+[package]
+name = "ezbrowsergameserver"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-trait = "0.1.74"
+futures-util = "0.3.29"
+tokio = { version = "1.33.0", features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
+tokio-tungstenite = "0.20.1"
