@@ -48,8 +48,6 @@ For this example, you will use `0.0.0.0:8080/00_min.html`:
         con.onopen = () => {
           // join a lobby
           con.send(id);
-          // set my name
-          con.send("n" + usernameTextField.value);
         };
       }
     </script>
