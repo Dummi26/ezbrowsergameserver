@@ -175,3 +175,21 @@ That's it - we've created a "game".
 If you want to try it out, go to the `examples/` directory,
 run `./server.sh`, run `cargo run --example 00_min`,
 then open `0.0.0.0:8080/00_min.html` in a browser and create a new lobby.
+
+## QuickStart
+
+```sh
+cargo new my_project
+cd my_project/
+cargo add ezbrowsergameserver
+cargo add tokio --features macros
+echo 'use ezbrowsergameserver::prelude::*;
+
+#[tokio::main]
+async fn main() {
+  host::<ToDo>("0.0.0.0:8081").await;
+}' > src/main.rs
+```
+
+Feel free to experiment with the example files
+by copying them to `src/main.rs` and changing different things :)
