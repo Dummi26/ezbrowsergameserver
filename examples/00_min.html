@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Min - ezbrowsergameserver</title>
+    <meta name="color-scheme" content="light dark">
+    <script>
+      var con = undefined;
+      function createLobby() {
+        joinLobby("new");
+      }
+      function joinLobby(id) {
+        let ip;
+        // if possible, use the same host that is hosting this html file.
+        // assume localhost if not possible (i.e. opened the file directly)
+        if (window.location.hostname) {
+          ip = window.location.hostname;
+        } else {
+          ip = "0.0.0.0";
+        }
+        // connect to the websocket
+        con = new WebSocket("ws://" + ip + ":8081");
+        // handle incoming messages
+        con.onmessage = (e) => {
+          let msg = e.data;
+          // allow the server to update the clients html
+          bodyDiv.innerHTML = msg;
+        };
+        // when the websocket finishes connecting...
+        con.onopen = () => {
+          // join a lobby
+          con.send(id);
+          // set my name
+          con.send("n" + usernameTextField.value);
+        };
+      }
+    </script>
+  </head>
+  <body>
+    <div id="bodyDiv">
+      <p>Lobby ID: <input id="lobbyId"></p>
+      <button onclick=createLobby()>Create new lobby</button>
+      <button onclick=joinLobbyPressed()>Join lobby by ID</button>
+      <script>
+        function joinLobbyPressed() {
+          joinLobby(lobbyId.value);
+        }
+      </script>
+    </div>
+  </body>
+</html>
