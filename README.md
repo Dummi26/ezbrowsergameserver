@@ -187,7 +187,7 @@ echo 'use ezbrowsergameserver::prelude::*;
 
 #[tokio::main]
 async fn main() {
-  host::<ToDo>("0.0.0.0:8081").await;
+    host::<ToDo>("0.0.0.0:8081").await;
 }' > src/main.rs
 ```
 
