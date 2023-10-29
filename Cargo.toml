@@ -3,6 +3,8 @@ name = "ezbrowsergameserver"
 version = "0.1.0"
 edition = "2021"
 
+description = "ez way to make multiplayer browser games using a websocket"
+
 [dependencies]
 async-trait = "0.1.74"
 futures-util = "0.3.29"
