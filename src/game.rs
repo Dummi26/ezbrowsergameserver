@@ -7,7 +7,7 @@ use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 pub struct Lobby<S: LobbyState> {
     pub state: S,
-    players: Vec<PlayerCon<S::PlayerState>>,
+    pub(crate) players: Vec<PlayerCon<S::PlayerState>>,
     /// set to true
     /// - manually
     /// - in new lobby
@@ -16,6 +16,18 @@ pub struct Lobby<S: LobbyState> {
     pub reset: bool,
 }
 
+/// LobbyState is the state stored in every lobby.
+///
+/// When a new lobby is created, `new()` is called to generate one instance of this struct.
+///
+/// When a new player joins a lobby, `new_player()` is called to generate an instance of `Self::PlayerState`.
+/// Then, player_joined() is called.
+///
+/// When a player disconnects (this can only be detected after a call to `get_msg()` or `send()`),
+/// `player_leaving()` is called. After `player_leaving()`, the player is removed from `lobby.players`.
+///
+/// `lobby_update()` is called repeatedly until it returns Some(_), which starts a game.
+/// Once the game finishes, the lobby's update loop restarts and `lobby.reset` is set to true.
 #[async_trait]
 pub trait LobbyState: Send + Sized {
     /// State associated with each player,
@@ -27,22 +39,33 @@ pub trait LobbyState: Send + Sized {
     fn new_player() -> Self::PlayerState;
     /// Called when a new player joins the lobby
     async fn player_joined(id: usize, lobby: &mut Lobby<Self>, player: PlayerIndex);
+    /// Called when a player disconnects, before they are removed
+    async fn player_leaving(id: usize, lobby: &mut Lobby<Self>, player: PlayerIndex);
     /// Called repeatedly while in the lobby phase.
     /// Return Some(_) to start a game.
-    /// Note: GameState's actual type can depend on the values in `lobby.state` (type `Self`), for example.
+    /// Since you're returning a trait object (`dyn GameState`),
+    /// you could create multiple structs implementing `GameState`
+    /// and returning either one, possibly at random
+    /// or based on `lobby.state` (user chooses a gamemode).
     async fn lobby_update(id: usize, lobby: &mut Lobby<Self>) -> Option<Box<dyn GameState<Self>>>;
 }
 
+/// GameState is the state used during a game.
+///
+/// During a game, `update()` is called repeatedly.
+/// Once `update()` returns `true`, the game ends.
+/// You can send/receive messages from the clients using `lobby`.
 #[async_trait]
 pub trait GameState<S: LobbyState>: Send {
     // update your game.
     // return true to end the game and return to the lobby.
     async fn update(&mut self, lobby: &mut Lobby<S>) -> bool;
+    async fn player_leaving(&mut self, lobby: &mut Lobby<S>, player: PlayerIndex);
 }
 
-pub struct InGame<S: LobbyState> {
-    lobby: Lobby<S>,
-    game_state: Box<dyn GameState<S>>,
+pub(crate) struct InGame<S: LobbyState> {
+    pub(crate) lobby: Lobby<S>,
+    pub(crate) game_state: Box<dyn GameState<S>>,
 }
 
 pub struct PlayerCon<D> {
@@ -50,7 +73,9 @@ pub struct PlayerCon<D> {
     con: Option<WebSocketStream<TcpStream>>,
 }
 
-/// index of a player that exists
+/// Index of a player that exists.
+/// Allows you to use `lobby.get_player()` without dealing with the index-out-of-bounds cases,
+/// since this index is never out-of-bounds.
 pub struct PlayerIndex(pub(crate) usize);
 impl PlayerIndex {
     pub fn i(&self) -> usize {
@@ -68,12 +93,6 @@ impl<S: LobbyState> Lobby<S> {
     }
     pub(crate) fn join(&mut self, player: PlayerCon<S::PlayerState>) {
         self.players.push(player);
-    }
-    pub fn settings(&self) -> &S {
-        &self.state
-    }
-    pub fn settings_mut(&mut self) -> &mut S {
-        &mut self.state
     }
     pub fn get_player(&mut self, player: PlayerIndex) -> &mut PlayerCon<S::PlayerState> {
         &mut self.players[player.0]
@@ -97,21 +116,32 @@ impl<S: LobbyState> InGame<S> {
         self.lobby.reset = true;
         self.lobby
     }
-    pub fn lobby(&self) -> &Lobby<S> {
-        &self.lobby
-    }
-
     pub(crate) async fn update(&mut self) -> bool {
         self.game_state.update(&mut self.lobby).await
+    }
+    pub(crate) async fn player_leaving(&mut self, index: usize) {
+        self.game_state
+            .player_leaving(&mut self.lobby, PlayerIndex(index))
+            .await;
     }
 }
 
 impl<D> PlayerCon<D> {
-    pub fn new(data: D, con: WebSocketStream<TcpStream>) -> Self {
+    pub(crate) fn new(data: D, con: WebSocketStream<TcpStream>) -> Self {
         Self {
             data,
             con: Some(con),
         }
+    }
+    /// forcibly disconnects this player.
+    pub async fn force_disconnect(&mut self) {
+        if let Some(con) = &mut self.con {
+            _ = con.close(None).await;
+            self.con = None;
+        }
+    }
+    pub fn disconnected(&self) -> bool {
+        self.con.is_none()
     }
     pub async fn send(&mut self, msg: String) {
         if let Some(con) = &mut self.con {
@@ -126,8 +156,7 @@ impl<D> PlayerCon<D> {
                 match msg {
                     Message::Text(msg) => Some(msg),
                     Message::Close(_) => {
-                        _ = con.close(None).await;
-                        self.con = None;
+                        self.force_disconnect().await;
                         None
                     }
                     Message::Binary(_) => None,

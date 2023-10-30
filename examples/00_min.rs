@@ -8,20 +8,25 @@ async fn main() {
 }
 
 struct GlobalState {
-    joined: bool,
+    player_count_changed: bool,
 }
 
 #[async_trait]
 impl LobbyState for GlobalState {
     type PlayerState = ();
     fn new() -> Self {
-        Self { joined: false }
+        Self {
+            player_count_changed: false,
+        }
     }
     fn new_player() -> Self::PlayerState {
         ()
     }
     async fn player_joined(_id: usize, lobby: &mut Lobby<Self>, _player: PlayerIndex) {
-        lobby.state.joined = true;
+        lobby.state.player_count_changed = true;
+    }
+    async fn player_leaving(_id: usize, lobby: &mut Lobby<Self>, _player: PlayerIndex) {
+        lobby.state.player_count_changed = true;
     }
     async fn lobby_update(id: usize, lobby: &mut Lobby<Self>) -> Option<Box<dyn GameState<Self>>> {
         if lobby.reset {
@@ -36,8 +41,13 @@ impl LobbyState for GlobalState {
                     .await;
             }
         }
-        if lobby.state.joined {
-            lobby.state.joined = false;
+        for player in lobby.players_mut() {
+            if let Some(_) = player.get_msg().await {
+                // if we don't try to get_msg, we don't detect player disconnects
+            }
+        }
+        if lobby.state.player_count_changed {
+            lobby.state.player_count_changed = false;
             // start the "game"
             return Some(Box::new(PlayerCountGame(None)));
         }
@@ -58,7 +68,15 @@ impl GameState<GlobalState> for PlayerCountGame {
                 player.send(format!("<h1>There are {c} players</h1>")).await;
             }
         }
+        for player in lobby.players_mut() {
+            if let Some(_) = player.get_msg().await {
+                // ...
+            }
+        }
         // game ends after 1 seconds
         self.0.is_some_and(|start| start.elapsed().as_secs() >= 1)
+    }
+    async fn player_leaving(&mut self, lobby: &mut Lobby<GlobalState>, _player: PlayerIndex) {
+        lobby.state.player_count_changed = true;
     }
 }

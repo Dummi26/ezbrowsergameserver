@@ -32,6 +32,9 @@ impl LobbyState for GlobalState {
     async fn player_joined(_id: usize, lobby: &mut Lobby<Self>, _player: PlayerIndex) {
         lobby.state.update = true;
     }
+    async fn player_leaving(_id: usize, lobby: &mut Lobby<Self>, _player: PlayerIndex) {
+        lobby.state.update = true;
+    }
     async fn lobby_update(id: usize, lobby: &mut Lobby<Self>) -> Option<Box<dyn GameState<Self>>> {
         let mut update = lobby.state.update;
         if lobby.reset {
@@ -115,6 +118,12 @@ impl GameState<GlobalState> for TimerGame {
                 player.send(format!("=<h1>T: {v}</h1>")).await;
             }
         }
+        for player in lobby.players_mut() {
+            if let Some(_) = player.get_msg().await {
+                // ...
+            }
+        }
         false
     }
+    async fn player_leaving(&mut self, _lobby: &mut Lobby<GlobalState>, _player: PlayerIndex) {}
 }

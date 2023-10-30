@@ -22,24 +22,7 @@ pub mod prelude {
 /// Hosts the game's WebSocket.
 ///
 /// this function ends in an infinite loop, so it never returns.
-/// if you would like to periodically do something, use `in_loop` for that.
-///
-/// clients can connect to the WebSocket via `addr`.
-/// they must then send two messages:
-/// - their nickname
-/// - either "new" or an id indicating which lobby they want to join
-///
-/// once in a lobby, message handling is done via `lobby_update`.
-/// this should
-/// - give clients a way to ask for initial info (other players, settings, lobby id, ...)
-/// - give clients a way to change their name (should notify all other clients)
-/// - let some/all clients change the game settings
-/// - do whatever else you want to be able to do in the lobby
-/// within `lobby_update`, you can return `Some(_)` to start the game.
-/// which `GameState` you return here can depend on the settings (i.e. your `Settings` may be an enum so users can pick one of multiple games), it just has to be any value implementing the `GameState` trait.
-///
-/// while a game is running, the `GameState` handles all messages.
-/// see the `GameState` trait for more info.
+/// to specify your `LobbyState` type, use the `host::<YourType>(addr).await` syntax.
 pub async fn host<S: LobbyState + 'static>(addr: impl ToSocketAddrs + Send + 'static) -> ! {
     let lobbies: Arc<Mutex<Vec<Option<Lobby<S>>>>> = Default::default();
     tokio::spawn(accept_new(addr, Arc::clone(&lobbies)));
@@ -51,6 +34,16 @@ pub async fn host<S: LobbyState + 'static>(addr: impl ToSocketAddrs + Send + 'st
                 if lobby.players().is_empty() {
                     *l = None;
                 } else {
+                    for index in lobby
+                        .players()
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, p)| if p.disconnected() { Some(i) } else { None })
+                        .collect::<Vec<_>>()
+                    {
+                        S::player_leaving(i, lobby, PlayerIndex(index)).await;
+                        lobby.players.remove(index);
+                    }
                     if let Some(game_state) = S::lobby_update(i, lobby).await {
                         let ig = InGame::new(l.take().unwrap(), game_state);
                         tokio::spawn(in_game(ig, Arc::clone(&lobbies)));
@@ -70,6 +63,17 @@ async fn in_game<S: LobbyState + 'static>(
         if in_game.update().await {
             add_lobby(lobbies.lock().await.as_mut(), in_game.into_lobby());
             return;
+        }
+        let indices = in_game
+            .lobby
+            .players()
+            .iter()
+            .enumerate()
+            .filter_map(|(i, p)| if p.disconnected() { Some(i) } else { None })
+            .collect::<Vec<_>>();
+        for index in indices.into_iter().rev() {
+            in_game.player_leaving(index).await;
+            in_game.lobby.players.remove(index);
         }
     }
 }
