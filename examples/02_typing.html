@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Min - ezbrowsergameserver</title>
+    <meta name="color-scheme" content="light dark">
+    <script>
+      var con = undefined;
+      function createLobby() {
+        joinLobby("new");
+      }
+      function joinLobby(id) {
+        let ip;
+        // if possible, use the same host that is hosting this html file.
+        // assume localhost if not possible (i.e. opened the file directly)
+        if (window.location.hostname) {
+          ip = window.location.hostname;
+        } else {
+          ip = "0.0.0.0";
+        }
+        // connect to the websocket
+        con = new WebSocket("ws://" + ip + ":8081");
+        // handle incoming messages
+        con.onmessage = (e) => {
+          let msgType = e.data.substring(0, 1);
+          let msg = e.data.substring(1);
+          if (msgType === "G") {
+            gameList.innerHTML = msg;
+          } else if (msgType === "0") {
+            amInGame = false;
+            bodyDiv.hidden = false;
+            inLobbyDiv.hidden = true;
+            inGameDiv.hidden = true;
+            myText.value = "";
+          } else if (msgType === "1") {
+            amReady = false;
+            setReadyBtnText();
+            amInGame = false;
+            bodyDiv.hidden = true;
+            inLobbyDiv.hidden = false;
+            inGameDiv.hidden = true;
+            lobbyIdDiv.innerHTML = msg;
+            myText.value = "";
+          } else if (msgType === "2" || msgType === "3") {
+            amInGame = msgType === "3";
+            bodyDiv.hidden = true;
+            inLobbyDiv.hidden = true;
+            inGameDiv.hidden = false;
+            inGameTarget.innerHTML = msg;
+            myText.value = "";
+            gameList.innerHTML = "";
+            myText.enabled = amInGame;
+          } else if (msgType === "s" || msgType === "S") {
+            // start a round
+            myText.hidden = msgType !== "S";
+            myText.value = "";
+            yourText = "";
+            if (msgType === "S") {
+              currentPlayer.innerHTML = "<b>" + msg + "</b>";
+            } else {
+              currentPlayer.innerHTML = msg;
+            }
+          } else if (msgType === "p") {
+            playersList.innerHTML = msg;
+          } else if (msgType === "X") {
+            amInGame = false;
+            myText.value = msg + " seconds";
+          }
+        };
+        // when the websocket finishes connecting...
+        con.onopen = () => {
+          // join a lobby
+          con.send(id);
+          bodyDiv.hidden = true;
+          inLobbyDiv.hidden = false;
+          inGameDiv.hidden = true;
+        };
+      }
+      var yourText = "";
+      var yourName = "";
+      var amInGame = false;
+      setInterval(() => {
+        if (lobbyNameInput && lobbyNameInput.value !== yourName) {
+          yourName = lobbyNameInput.value;
+          con.send("n" + yourName);
+        }
+        if (amInGame && myText && myText.value && myText !== yourText) {
+          yourText = myText.value;
+          con.send("=" + yourText);
+        }
+      }, 200);
+    </script>
+  </head>
+  <body>
+    <div id="bodyDiv">
+      <p>Lobby ID: <input id="lobbyId"></p>
+      <button onclick=createLobby()>Create new lobby</button>
+      <button onclick=joinLobbyPressed()>Join lobby by ID</button>
+      <script>
+        function joinLobbyPressed() {
+          joinLobby(lobbyId.value);
+        }
+      </script>
+    </div>
+    <div hidden id="inLobbyDiv">
+      <h1>Welcome to the lobby!</h1>
+      <p>Lobby ID: <span id="lobbyIdDiv">(?)</span></p>
+      <p>Your name: <input id="lobbyNameInput"></p>
+      <button id="readyBtn" onclick="toggleReady()">Ready Up</button>
+      <script>
+        var amReady = false;
+        function toggleReady() {
+          amReady = !amReady;
+          setReadyBtnText();
+          if (amReady) {
+            con.send("R");
+          } else {
+            con.send("r");
+          }
+        }
+        function setReadyBtnText() {
+          if (amReady) {
+            readyBtn.innerHTML = "Ready!";
+          } else {
+            readyBtn.innerHTML = "Ready Up";
+          }
+        }
+      </script>
+      <p>Players:</p>
+      <p id="playersList"></p>
+    </div>
+    <div hidden id="inGameDiv">
+      <p id="inGameTarget"></p>
+      <input id="myText">
+      <p id="gameList"></p>
+    </div>
+  </body>
+</html>

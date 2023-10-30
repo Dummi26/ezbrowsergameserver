@@ -1,0 +1,9 @@
+[package]
+name = "example-02_typing"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ezbrowsergameserver = { path = "../.." }
+rand = "0.8.5"
+tokio = { version = "1.33.0", features = ["macros"] }
