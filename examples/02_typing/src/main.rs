@@ -228,7 +228,7 @@ fn get_phrase() -> String {
     let words = include_str!("words.txt").lines().collect::<Vec<_>>();
     let mut out = String::new();
     let mut rng = rand::thread_rng();
-    for i in 0..rng.gen_range(5..=25) {
+    for i in 0..rng.gen_range(5..=20) {
         if i > 0 {
             out.push(' ');
         }
