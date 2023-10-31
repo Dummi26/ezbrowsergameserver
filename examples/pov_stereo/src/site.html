@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='UTF-8'>
+    <title>pov stereo</title>
+    <meta name='color-scheme' content='light dark'>
+  </head>
+  <body>
+    <div id="segmentMain">
+      <input id="lobbyIdInput" placeholder="lobby ID or empty for new lobby">
+      <button onclick="joinLobbyBtnPressed()">Join!</button>
+    </div>
+    <div hidden id="segmentLoading">
+      Loading...
+    </div>
+
+    <div hidden id="segmentLobby">
+      <div>Lobby ID: <span id="lobbyIdDiv"></span></div>
+      <input id="nameInput" placeholder="Joe">
+      <button id="readyBtn" onclick="readyBtnClicked()"></button>
+      <p>
+        <div id="countdown"></div>
+      </p>
+      <hr>
+      <div id="playerList"></div>
+      <hr>
+      <div>Max Points: <input type="number" min="1" id="settingsMaxPoints"></div>
+    </div>
+
+    <div hidden id="segmentInGame">
+      <div id="elemTextL" style="position:fixed;top:0;left:0;height:48%;width:50%;"></div>
+      <div id="elemTextR" style="position:fixed;top:0;left:50%;height:48%;width:50%;"></div>
+      <button id="rlb0" onclick="rl0()" style="position:fixed;top:48%;height:4%;width:10%;left:00%;">--</button>
+      <button id="rlb1" onclick="rl1()" style="position:fixed;top:48%;height:4%;width:10%;left:10%;">-</button>
+      <button id="rlb2" onclick="rl2()" style="position:fixed;top:48%;height:4%;width:10%;left:20%;">~</button>
+      <button id="rlb3" onclick="rl3()" style="position:fixed;top:48%;height:4%;width:10%;left:30%;">+</button>
+      <button id="rlb4" onclick="rl4()" style="position:fixed;top:48%;height:4%;width:10%;left:40%;">++</button>
+      <button id="rrb0" onclick="rr0()" style="position:fixed;top:48%;height:4%;width:10%;left:50%;">--</button>
+      <button id="rrb1" onclick="rr1()" style="position:fixed;top:48%;height:4%;width:10%;left:60%;">-</button>
+      <button id="rrb2" onclick="rr2()" style="position:fixed;top:48%;height:4%;width:10%;left:70%;">~</button>
+      <button id="rrb3" onclick="rr3()" style="position:fixed;top:48%;height:4%;width:10%;left:80%;">+</button>
+      <button id="rrb4" onclick="rr4()" style="position:fixed;top:48%;height:4%;width:10%;left:90%;">++</button>
+      <textarea id="elemInput" style="position:fixed;top:52%;left:0;height:47%;width:49%;resize:none;"></textarea>
+      <div id="elemPreview" style="position:fixed;top:52%;left:50%;height:50%;width:50%;"></div>
+    </div>
+
+    <div hidden id="segmentAfterRound">
+    </div>
+    <script>
+    var ipAddr;
+    var myName = "";
+    var settingMaxPoints = "";
+    if (window.location.hostname) {
+      ipAddr = window.location.hostname + ":\{port}";
+    } else {
+      ipAddr = "0.0.0.0:\{port}";
+    }
+    console.log("Using address " + ipAddr + ".");
+    var con = undefined;
+    var connected = false;
+    var isReady = false;
+    function connectToLobby(id) {
+      settingsMaxPoints.value = "";
+      console.log("connecting to websocket...");
+      segmentMain.hidden = true;
+      segmentLoading.hidden = false;
+      con = new WebSocket("ws://" + ipAddr);
+      con.onopen = () => {
+        console.log("connected");
+        con.send(id);
+        connected = true;
+      }
+      con.onmessage = (e) => {
+        let msg = e.data;
+        if (msg.startsWith("1")) {
+          gameStartsIn(msg.substring(1));
+        } else if (msg.startsWith("2")) {
+          goToInGame();
+        } else if (msg.startsWith("3")) {
+          segmentAfterRound.innerHTML = msg.substring(1);
+          segmentInGame.hidden = true;
+          segmentAfterRound.hidden = false;
+        } else if (msg.startsWith("L")) {
+          setL(msg.substring(1));
+        } else if (msg.startsWith("R")) {
+          setR(msg.substring(1));
+        } else if (msg.startsWith("0")) {
+          lobbyIdDiv.innerHTML = msg.substring(1);
+          isReady = false;
+          setL("");
+          setR("");
+          goToLobby();
+        } else if (msg.startsWith("P")) {
+          playerList.innerHTML = msg.substring(1);
+        } else if (msg.startsWith("s")) {
+          if ("sMP" === msg.substring(0, 3)) {
+            settingMaxPoints = msg.substring(3);
+            settingsMaxPoints.value = settingMaxPoints;
+          }
+        }
+      }
+    }
+    function createNewLobby() {
+      connectToLobby("new");
+    }
+    \{autojoin}
+    function setMyText(text) {
+      con.send("=" + text);
+    }
+    function setReady() {
+      if (!isReady) {
+        con.send("1");
+        isReady = true;
+      }
+    }
+    function setNotReady() {
+      if (isReady) {
+        con.send("0");
+        isReady = false;
+      }
+    }
+
+    var inputVal = "";
+    function goToLobby() {
+      setReadyBtnText();
+      countdown.innerHTML = "Waiting...";
+      segmentMain.hidden = true;
+      segmentLoading.hidden = true;
+      segmentLobby.hidden = false;
+      segmentInGame.hidden = true;
+      segmentAfterRound.hidden = true;
+    }
+    function goToInGame() {
+      segmentMain.hidden = true;
+      segmentLoading.hidden = true;
+      segmentLobby.hidden = true;
+      segmentInGame.hidden = false;
+      segmentAfterRound.hidden = true;
+      resetButtonsL();
+      resetButtonsR();
+      inputVal = "";
+      elemInput.value = "";
+      elemPreview.innerHTML = "";
+      setL("");
+      setR("");
+    }
+    function setL(txt) {
+      elemTextL.innerHTML = txt;
+    }
+    function setR(txt) {
+      elemTextR.innerHTML = txt;
+    }
+    setInterval(() => {
+      if (con !== undefined) {
+        if (settingMaxPoints !== settingsMaxPoints.value) {
+          settingMaxPoints = settingsMaxPoints.value;
+          con.send("sMP" + settingMaxPoints);
+        }
+        if (myName !== nameInput.value) {
+          myName = nameInput.value;
+          con.send("-" + myName);
+        }
+        if (inputVal !== elemInput.value) {
+          inputVal = elemInput.value;
+          elemPreview.innerHTML = inputVal;
+          setMyText(inputVal);
+        }
+      }
+    }, 100);
+
+    function joinLobbyBtnPressed() {
+      if (lobbyIdInput.value) {
+        connectToLobby(lobbyIdInput.value);
+      } else {
+        createNewLobby();
+      }
+    }
+    function readyBtnClicked() {
+      if (isReady) {
+        setNotReady();
+      } else {
+        setReady();
+      }
+      setReadyBtnText();
+    }
+    function setReadyBtnText() {
+      if (isReady) {
+        readyBtn.innerHTML = "Ready!";
+      } else {
+        readyBtn.innerHTML = "Ready up";
+      }
+    }
+    function gameStartsIn(t) {
+      countdown.innerHTML = "Game starts in " + t + "...";
+    }
+    function resetButtonsL() {
+      rlb0.disabled = false;
+      rlb1.disabled = false;
+      rlb2.disabled = false;
+      rlb3.disabled = false;
+      rlb4.disabled = false;
+    }
+    function resetButtonsR() {
+      rrb0.disabled = false;
+      rrb1.disabled = false;
+      rrb2.disabled = false;
+      rrb3.disabled = false;
+      rrb4.disabled = false;
+    }
+    function rl0() {
+      resetButtonsL();
+      rlb0.disabled = true;
+      con.send("L-5");
+    }
+    function rl1() {
+      resetButtonsL();
+      rlb1.disabled = true;
+      con.send("L-2");
+    }
+    function rl2() {
+      resetButtonsL();
+      rlb2.disabled = true;
+      con.send("L0");
+    }
+    function rl3() {
+      resetButtonsL();
+      rlb3.disabled = true;
+      con.send("L2");
+    }
+    function rl4() {
+      resetButtonsL();
+      rlb4.disabled = true;
+      con.send("L5");
+    }
+    function rr0() {
+      resetButtonsR();
+      rrb0.disabled = true;
+      con.send("R-5");
+    }
+    function rr1() {
+      resetButtonsR();
+      rrb1.disabled = true;
+      con.send("R-2");
+    }
+    function rr2() {
+      resetButtonsR();
+      rrb2.disabled = true;
+      con.send("R0");
+    }
+    function rr3() {
+      resetButtonsR();
+      rrb3.disabled = true;
+      con.send("R2");
+    }
+    function rr4() {
+      resetButtonsR();
+      rrb4.disabled = true;
+      con.send("R5");
+    }
+    </script>
+  </body>
+</html>
