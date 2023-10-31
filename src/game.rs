@@ -76,6 +76,7 @@ pub struct PlayerCon<D> {
 /// Index of a player that exists.
 /// Allows you to use `lobby.get_player()` without dealing with the index-out-of-bounds cases,
 /// since this index is never out-of-bounds.
+#[derive(Clone, Copy)]
 pub struct PlayerIndex(pub(crate) usize);
 impl PlayerIndex {
     pub fn i(&self) -> usize {
