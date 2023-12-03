@@ -1,6 +1,6 @@
 [package]
 name = "ezbrowsergameserver"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 description = "ez way to make multiplayer browser games using a websocket"
 license = "MIT OR Apache-2.0"

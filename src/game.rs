@@ -151,28 +151,45 @@ impl<D> PlayerCon<D> {
             }
         }
     }
-    pub async fn get_msg(&mut self) -> Option<String> {
+    // like `get_msg`, but blocking
+    pub async fn wait_for_msg(&mut self) -> Option<String> {
         if let Some(con) = &mut self.con {
-            if let Poll::Ready(Ok(Some(msg))) = futures_util::poll!(con.try_next()) {
-                match msg {
-                    Message::Text(msg) => Some(msg),
-                    Message::Close(_) => {
-                        self.force_disconnect().await;
-                        None
-                    }
-                    Message::Binary(_) => None,
-                    Message::Ping(data) => {
-                        _ = con.send(Message::Pong(data));
-                        None
-                    }
-                    Message::Pong(_) => None,
-                    Message::Frame(_) => None,
-                }
+            if let Ok(Some(msg)) = con.try_next().await {
+                self.respond_msg(msg).await
             } else {
                 None
             }
         } else {
             None
+        }
+    }
+    pub async fn get_msg(&mut self) -> Option<String> {
+        if let Some(con) = &mut self.con {
+            if let Poll::Ready(Ok(Some(msg))) = futures_util::poll!(con.try_next()) {
+                self.respond_msg(msg).await
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+    async fn respond_msg(&mut self, msg: Message) -> Option<String> {
+        match msg {
+            Message::Text(msg) => Some(msg),
+            Message::Close(_) => {
+                self.force_disconnect().await;
+                None
+            }
+            Message::Binary(_) => None,
+            Message::Ping(data) => {
+                if let Some(con) = &mut self.con {
+                    _ = con.send(Message::Pong(data));
+                }
+                None
+            }
+            Message::Pong(_) => None,
+            Message::Frame(_) => None,
         }
     }
 }
